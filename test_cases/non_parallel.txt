@@ -1,0 +1,48 @@
+   Compiling xi-rope v0.2.0 (file:///Users/rofls/dev/projects/xi-mac/xi-editor/rust/rope)
+warning: unused variable: `result`
+   --> rope/examples/ropediff.rs:185:9
+    |
+185 |     let result = delta.apply(&one);
+    |         ^^^^^^ help: consider using `_result` instead
+    |
+    = note: #[warn(unused_variables)] on by default
+
+warning: unused variable: `size`
+   --> rope/examples/ropediff.rs:242:49
+    |
+242 | fn print_result(name: &str, result: &RunResult, size: usize, verbose: bool) {
+    |                                                 ^^^^ help: consider using `_size` instead
+
+warning: struct is never used: `PrettyDelta`
+  --> rope/examples/ropediff.rs:15:1
+   |
+15 | struct PrettyDelta<'a> {
+   | ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: #[warn(dead_code)] on by default
+
+warning: function is never used: `pretty_print`
+  --> rope/examples/ropediff.rs:57:1
+   |
+57 | fn pretty_print(delta: &RopeDelta, base: &Rope) -> String {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function is never used: `print_chunks`
+   --> rope/examples/ropediff.rs:209:1
+    |
+209 | fn print_chunks(rope: &Rope) {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused `std::result::Result` which must be used
+  --> rope/examples/ropediff.rs:74:5
+   |
+74 |     test_all(&file1, &file2, verbose);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: #[warn(unused_must_use)] on by default
+   = note: this `Result` may be an `Err` variant, which should be handled
+
+    Finished release [optimized] target(s) in 1.74s
+     Running `/Users/rofls/dev/projects/xi-mac/xi-editor/rust/target/release/examples/ropediff`
+thread 'main' panicked at 'assertion failed: test_dir.exists()', rope/examples/ropediff.rs:115:5
+note: Run with `RUST_BACKTRACE=1` for a backtrace.
