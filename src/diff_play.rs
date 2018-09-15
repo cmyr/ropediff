@@ -604,16 +604,16 @@ fn expand_match_left(chunk: &str, base: &mut Cursor<RopeInfo>) -> usize {
     // no hit, and at end of chunk: the whole chunk matches
     if chunk.len() <= leaf.len() { return chunk.len(); }
     // expand at most into one neighbouring leaf
-    let remainder = chunk.len() - leaf.len();
+    let scanned = leaf.len();
 
     base.prev_leaf().and_then(|(leaf, _)| {
-        let chunk = &chunk[..chunk.len() - remainder];
+        let chunk = &chunk[..chunk.len() - scanned];
         ne_idx_rev(chunk.as_bytes(), leaf.as_bytes())
             .map(|mut idx| {
                 while idx > 1 && !chunk.is_char_boundary(chunk.len() - idx) {
                     idx -= 1;
                 }
-                idx + remainder
+                idx + scanned
             })
     })
     .unwrap_or(max_size)
