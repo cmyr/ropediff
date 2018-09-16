@@ -8,6 +8,7 @@ use xi_rope::delta::{Delta, DeltaElement};
 use xi_rope::rope::{BaseMetric, Rope, RopeInfo, RopeDelta};
 use xi_rope::interval::Interval;
 use xi_rope::compare::{ne_idx, ne_idx_rev, RopeScanner};
+use xi_rope::diff::{Diff as XiDiff, LineHashDiff};
 
 use memchr::memchr;
 
@@ -21,6 +22,12 @@ pub trait MinimalDiff {
                           offset: usize, builder: &mut DeltaOps);
 }
 
+
+impl Diff<RopeInfo> for LineHashDiff {
+    fn compute_delta(base: &Rope, target: &Rope, _min_size: usize) -> RopeDelta {
+        <LineHashDiff as XiDiff<RopeInfo>>::compute_delta(base, target)
+    }
+}
 /// Shared between various diff implementations
 pub fn find_diff_start(base: &Rope, target: &Rope) -> (usize, usize) {
     let mut base_cursor = Cursor::new(base, 0);
@@ -575,17 +582,18 @@ fn expand_match_right(chunk: &str, base: &mut Cursor<RopeInfo>) -> usize {
     }
     // no hit, and at end of chunk: the whole chunk matches
     if leaf.len() >= chunk.len() { return chunk.len(); }
-    let remainder = chunk.len() - leaf.len();
+    //let remainder = chunk.len() - leaf.len();
+    let scanned = leaf.len();
 
     // expand at most into one neighbouring leaf
     base.next_leaf().and_then(|(leaf, _)| {
-        let chunk = &chunk[remainder..];
+        let chunk = &chunk[chunk.len() - scanned..];
         ne_idx(chunk.as_bytes(), leaf.as_bytes())
             .map(|mut idx| {
                 while idx > 0 && !chunk.is_char_boundary(idx) {
                     idx -= 1;
                 }
-                idx + remainder
+                idx + scanned
             })
     })
     .unwrap_or(max_size)
@@ -633,21 +641,22 @@ impl SuffixDiff {
     fn match_for_cursor(cursor: &mut Cursor<RopeInfo>, suffix: &SuffixTable,
                         chunk_size: usize) -> Option<(usize, usize)> {
 
-        let slice = cursor.next_utf8_chunk_in_leaf(chunk_size);
-        debug_assert!(!slice.is_empty());
+        let (leaf, offset_in_leaf) = cursor.get_leaf().unwrap();
+        let leaf_head_end = (offset_in_leaf + chunk_size).min(leaf.len());
+        let leaf_head = &leaf[offset_in_leaf..leaf_head_end];
+        debug_assert!(!leaf_head.is_empty());
+        let new_curs_pos = cursor.pos() + leaf_head.len();
+        cursor.set(new_curs_pos);
 
-        let match_positions = suffix.positions(&slice);
+        let match_positions = suffix.positions(&leaf_head);
         if match_positions.is_empty() { return None; }
         // end of rope: no need to expand the match, just return the last
-        if cursor.pos() >= cursor.total_len() {
+        if cursor.pos() >= cursor.total_len() || leaf_head_end == leaf.len() {
             let offset = *match_positions.last().unwrap() as usize;
-            return Some((offset, offset + slice.len()));
+            return Some((offset, offset + leaf_head.len()));
         }
 
-        // stash cursor position, we'll need to reset it afterwards
-        let slice_end_pos = cursor.pos();
-
-        let rest_of_chunk = cursor.next_utf8_chunk_in_leaf(usize::max_value()).as_bytes();
+        let leaf_tail = &leaf.as_bytes()[leaf_head_end..];
 
         // find which chunk is the matchiest:
         let (pos, match_len) = match_positions.iter()
@@ -657,21 +666,22 @@ impl SuffixDiff {
                 let match_pos = *match_pos as usize;
                 let mut off = 0;
                 loop {
-                    let suf_pos = match_pos + slice.len() + off;
+                    let suf_pos = match_pos + leaf_head.len() + off;
                     if suf_pos >= suffix.text().len()
-                    || off >= rest_of_chunk.len()
-                    || suffix.text().as_bytes()[suf_pos] != rest_of_chunk[off] {
+                    || off >= leaf_tail.len()
+                    || suffix.text().as_bytes()[suf_pos] != leaf_tail[off] {
                         break;
                     }
                     off += 1;
                 }
-                 off + slice.len()
+                 off + leaf_head.len()
             })
             .enumerate()
             .max_by(|a, b| a.1.cmp(&b.1))?;
 
         let match_start = match_positions[pos] as usize;
-        cursor.set(slice_end_pos + (match_len - slice.len()));
+        let final_curs_pos =cursor.pos() + (match_len - leaf_head.len());
+        cursor.set(final_curs_pos);
         Some((match_start, match_start + match_len))
     }
 }

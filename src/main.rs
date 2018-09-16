@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use xi_rope::Rope;
 use xi_rope::rope::{RopeDelta, RopeInfo};
 use xi_rope::delta::DeltaElement;
+use xi_rope::diff::LineHashDiff;
 
 mod diff_play;
 use diff_play::*;
@@ -124,7 +125,6 @@ fn big_test() -> ::std::io::Result<()> {
         ("5klines_shuffled.rs", "5klines.rs"),
         ("100k_lines_change.rs", "100k_lines_change.rs"),
         ("100k_lines_change.rs", "100k_lines_shuffled.rs"),
-        ("100k_lines_shuffled.rs", "100k_lines_change.rs"),
     ];
 
     for (one, two) in TEST_PAIRS {
@@ -205,7 +205,7 @@ fn test_all(one: &str, two: &str, verbose: bool) -> ::std::io::Result<()> {
         let result = run_diff(MockParallelHashDiff, &one_str, &two_str, size);
         print_result(&format!("mock parallel hash-{}", size), &result, size, verbose);
 
-        let result = run_diff(FinalDiff, &one_str, &two_str, size);
+        let result = run_diff(LineHashDiff, &one_str, &two_str, size);
         print_result(&format!("final-{}", size), &result, size, verbose);
 
         //let result = run_diff(ParallelHashDiff, &one_str, &two_str, size);
