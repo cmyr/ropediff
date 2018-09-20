@@ -7,7 +7,7 @@ use xi_rope::tree::{Cursor, Node, NodeInfo};
 use xi_rope::delta::{Delta, DeltaElement};
 use xi_rope::rope::{BaseMetric, Rope, RopeInfo, RopeDelta};
 use xi_rope::interval::Interval;
-use xi_rope::diff_utils::{ne_idx, ne_idx_rev, RopeScanner};
+use xi_rope::compare::{ne_idx, ne_idx_rev, RopeScanner};
 
 use memchr::memchr;
 
@@ -149,7 +149,7 @@ impl Diff<RopeInfo> for SmallDiff {
         let mut processed_idx = 0;
         let matcher = Matcher::new(base, min_size);
 
-        for chunk in target.iter_chunks_all() {
+        for chunk in target.iter_chunks(..) {
             let mut chunk_idx = 0;
             while chunk_idx < chunk.len() {
                 match matcher.find_match(chunk, chunk_idx) {
@@ -182,7 +182,7 @@ impl MinimalDiff for SmallTricksyDiff {
         let mut processed_idx = 0;
         let matcher = Matcher::new(&base, min_size);
 
-        for chunk in target.iter_chunks(0, target.len()) {
+        for chunk in target.iter_chunks(..) {
             let mut chunk_idx = 0;
             while chunk_idx < chunk.len() {
                 match matcher.find_match(chunk, chunk_idx) {
@@ -220,7 +220,7 @@ impl<'a> Matcher<'a> {
     pub fn new(rope: &'a Rope, min_size: usize) -> Self {
         let mut inner = HashMap::with_capacity(rope.len());
         let mut idx = 0;
-        for chunk in rope.iter_chunks_all() {
+        for chunk in rope.iter_chunks(..) {
             let mut chunk_idx = 0;
             for slice in chunk.as_bytes().chunks(min_size) {
                 if slice.len() != min_size { continue; }
@@ -299,7 +299,7 @@ impl MinimalDiff for FastHashDiff {
         let mut offset = 0;
         let mut prev_targ_end = 0;
 
-        for line in target.lines_raw_all() {
+        for line in target.lines_raw(..) {
             let non_ws = non_ws_offset(&line);
             if offset + non_ws < prev_targ_end {
                 // no-op, but we don't break because we still want to increment offset
@@ -413,7 +413,7 @@ impl Diff<RopeInfo> for MockParallelHashDiff {
         let mut builder = DeltaOps::default();
         let base_str = String::from(base);
         let line_hashes = make_line_hashes(&base_str, min_size);
-        let chunk_results = target.iter_chunks_all()
+        let chunk_results = target.iter_chunks(..)
             .scan(0, |offset, chunk| {
                 let result = (*offset, chunk);
                 *offset += chunk.len();
@@ -465,7 +465,7 @@ impl Diff<RopeInfo> for ParallelHashDiff {
 
         let mut chunk_off = 0;
         let mut chunk_count = 0;
-        for chunk in target.iter_chunks_all() {
+        for chunk in target.iter_chunks(..) {
             queue.push((chunk_off, chunk));
             chunk_off += chunk.len();
             chunk_count += 1;
@@ -689,7 +689,7 @@ impl Diff<RopeInfo> for SuffixDiff {
 impl MinimalDiff for SuffixDiffOpt {
     fn compute_delta_body(base: &Rope, target: &Rope,
                           min_size: usize, offset: usize, builder: &mut DeltaOps) {
-        let suffix = SuffixTable::new(base.slice_to_string(0, base.len()));
+        let suffix = SuffixTable::new(base.slice_to_string(..));
         let mut cursor = Cursor::new(target, 0);
         let mut prev_cursor_pos;
 
@@ -831,7 +831,7 @@ impl Diff<RopeInfo> for FinalDiff {
         let mut prev_targ_end = start_offset;
         let mut prev_base_end = 0;
 
-        for line in target.lines_raw(start_offset, target_end) {
+        for line in target.lines_raw(start_offset..target_end) {
             let non_ws = non_ws_offset(&line);
             if offset + non_ws < prev_targ_end {
                 // no-op, but we don't break because we still want to bump offset

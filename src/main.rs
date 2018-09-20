@@ -15,7 +15,7 @@ use xi_rope::delta::DeltaElement;
 
 mod diff_play;
 use diff_play::*;
-use xi_rope::diff_utils::RopeScanner;
+use xi_rope::compare::RopeScanner;
 
 struct PrettyDelta<'a> {
     delta: &'a RopeDelta,
@@ -38,7 +38,7 @@ impl<'a> fmt::Display for PrettyDelta<'a> {
             match *elem {
                 DeltaElement::Copy(beg, end) => {
                     color_idx = (color_idx + 1) % OTHER_COLORS.len();
-                    let s = self.base.slice_to_string(beg, end);
+                    let s = self.base.slice_to_string(beg..end);
                     if atty::is(atty::Stream::Stdin) {
                         write!(f, "{}{}{}", OTHER_COLORS[color_idx], &s, END)?;
                     } else {
@@ -263,7 +263,7 @@ fn run_diff<D, A, B>(_: D, one: A, two: B, size: usize) -> RunResult
 }
 
 fn print_chunks(rope: &Rope) {
-    for (i, s) in rope.iter_chunks_all().enumerate() {
+    for (i, s) in rope.iter_chunks(..).enumerate() {
         let color_idx = i % OTHER_COLORS.len();
         eprint!("{}{}{}", OTHER_COLORS[color_idx], &s, END);
     }
