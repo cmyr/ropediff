@@ -5,6 +5,7 @@ extern crate atty;
 extern crate crossbeam;
 extern crate suffix;
 extern crate memchr;
+extern crate statrs;
 
 use std::time::{Duration, Instant};
 use std::fmt;
@@ -15,7 +16,11 @@ use xi_rope::delta::DeltaElement;
 use xi_rope::diff::LineHashDiff;
 
 mod diff_play;
+mod final_improved;
+
+use statrs::statistics::Statistics;
 use diff_play::*;
+use final_improved::LineHashLisDiff;
 use xi_rope::compare::RopeScanner;
 
 struct PrettyDelta<'a> {
@@ -196,29 +201,32 @@ fn test_all(one: &str, two: &str, verbose: bool) -> ::std::io::Result<()> {
         //let result = run_diff(SmallSlowDiff, &one_str, &two_str, size);
         //print_result(&format!("quadratic-{}", size), &result, size, verbose);
 
-        let result = run_diff(FastHashDiffSimpler, &one_str, &two_str, size);
-        print_result(&format!("fast hash naive-{}", size), &result, size, verbose);
+        //let result = run_diff(FastHashDiffSimpler, &one_str, &two_str, size);
+        //print_result(&format!("fast hash naive-{}", size), &result, size, verbose);
 
-        let result = run_diff(FastHashDiff, &one_str, &two_str, size);
-        print_result(&format!("fast hash-{}", size), &result, size, verbose);
+        //let result = run_diff(FastHashDiff, &one_str, &two_str, size);
+        //print_result(&format!("fast hash-{}", size), &result, size, verbose);
 
-        let result = run_diff(MockParallelHashDiff, &one_str, &two_str, size);
-        print_result(&format!("mock parallel hash-{}", size), &result, size, verbose);
+        //let result = run_diff(MockParallelHashDiff, &one_str, &two_str, size);
+        //print_result(&format!("mock parallel hash-{}", size), &result, size, verbose);
 
         let result = run_diff(LineHashDiff, &one_str, &two_str, size);
         print_result(&format!("final-{}", size), &result, size, verbose);
 
+        let result = run_diff(LineHashLisDiff, &one_str, &two_str, size);
+        print_result(&format!("final+lis-{}", size), &result, size, verbose);
+
         //let result = run_diff(ParallelHashDiff, &one_str, &two_str, size);
         //print_result(&format!("parallel hash-{}", size), &result, size, verbose);
 
-        let result = run_diff(SmallDiff, &one_str, &two_str, size);
-        print_result(&format!("hash naive-{}", size), &result, size, verbose);
+        //let result = run_diff(SmallDiff, &one_str, &two_str, size);
+        //print_result(&format!("hash naive-{}", size), &result, size, verbose);
 
-        let result = run_diff(SmallTricksyDiff, &one_str, &two_str, size);
-        print_result(&format!("hash-opt-{}", size), &result, size, verbose);
+        //let result = run_diff(SmallTricksyDiff, &one_str, &two_str, size);
+        //print_result(&format!("hash-opt-{}", size), &result, size, verbose);
 
-        let result = run_diff(SuffixDiff, &one_str, &two_str, size);
-        print_result(&format!("suffix-{}", size), &result, size, verbose);
+        //let result = run_diff(SuffixDiff, &one_str, &two_str, size);
+        //print_result(&format!("suffix-{}", size), &result, size, verbose);
 
         //let result = run_diff(SuffixDiffOpt, &one_str, &two_str, size);
         //print_result(&format!("suffix-opt-{}", size), &result, size, verbose);
@@ -230,12 +238,16 @@ fn test_all(one: &str, two: &str, verbose: bool) -> ::std::io::Result<()> {
 fn run_diff<D, A, B>(_: D, one: A, two: B, size: usize) -> RunResult
     where D: Diff<RopeInfo>, A: AsRef<str>, B: AsRef<str>
 {
+    let N_RUNS = 10;
     let one = Rope::from(one);
     let two = Rope::from(two);
 
-    let start = Instant::now();
-    let delta = D::compute_delta(&one, &two, size);
-    let elapsed = start.elapsed();
+    let mut delta = RopeDelta { els: vec![], base_len: 0 };
+    let results = (0..N_RUNS).map(|_|{
+        let start = Instant::now();
+        delta = D::compute_delta(&one, &two, size);
+        start.elapsed().subsec_nanos() as f64
+    }).collect::<Vec<_>>();
 
     let result = delta.apply(&one);
     if String::from(&result) != String::from(&two) {
@@ -256,7 +268,7 @@ fn run_diff<D, A, B>(_: D, one: A, two: B, size: usize) -> RunResult
 
     RunResult {
         delta,
-        duration: elapsed,
+        runs: results,
         byte_size: value.len(),
         worst_case,
     }
@@ -282,7 +294,8 @@ fn print_chunks(rope: &Rope) {
 
 struct RunResult {
     delta: RopeDelta,
-    duration: Duration,
+    runs: Vec<f64>,
+    //duration: Duration,
     byte_size: usize,
     worst_case: usize,
 }
@@ -290,8 +303,10 @@ struct RunResult {
 impl fmt::Display for RunResult {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let byte_perc = 100.0 * (self.byte_size as f64 / self.worst_case as f64);
-        write!(f, "{:>8}b {:>6.2}% {:>8}μ", self.byte_size, byte_perc,
-        self.duration.subsec_micros())
+        let mean = (self.runs.iter().mean() / 1000.0) as usize;
+        let stdev = (self.runs.iter().std_dev() / 1000.0) as usize;
+        write!(f, "{:>8}b {:>6.2}% {:>8}μs stddev {}", self.byte_size, byte_perc,
+               mean, stdev)
     }
 }
 

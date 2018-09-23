@@ -282,7 +282,7 @@ impl Diff<RopeInfo> for FastHashDiffSimpler {
     }
 }
 
-fn make_line_hashes<'a>(base: &'a str, min_size: usize) -> HashMap<&'a str, usize> {
+pub fn make_line_hashes<'a>(base: &'a str, min_size: usize) -> HashMap<&'a str, usize> {
     let mut offset = 0;
     let mut line_hashes = HashMap::with_capacity(base.len() / 60);
     let iter = LineScanner { inner: base, idx: 0 };
@@ -387,10 +387,11 @@ fn expand_match(base: &Rope, target: &Rope, base_off: usize, targ_off: usize,
     (base_off - start_pos, end_pos - base_off)
 }
 
-fn fast_expand_match(base: &Rope, target: &Rope, base_off: usize, targ_off: usize,
+pub fn fast_expand_match(base: &Rope, target: &Rope, base_off: usize, targ_off: usize,
                 prev_match_targ_end: usize) -> (usize, usize) {
 
     let mut scanner = RopeScanner::new(base, target);
+    debug_assert!(targ_off >= prev_match_targ_end, "{} >= {}", targ_off, prev_match_targ_end);
     let max_left = targ_off - prev_match_targ_end;
     let start = scanner.find_ne_char_left(base_off, targ_off, max_left);
     debug_assert!(start <= max_left, "{} <= {}", start, max_left);
@@ -628,7 +629,7 @@ fn expand_match_left(chunk: &str, base: &mut Cursor<RopeInfo>) -> usize {
 }
 
 #[inline]
-fn non_ws_offset(s: &str) -> usize {
+pub fn non_ws_offset(s: &str) -> usize {
     s.as_bytes()
         .iter()
         .take_while(|b| **b == b' ' || **b == b'\t')
@@ -773,11 +774,13 @@ pub struct DiffBuilder {
 }
 
 impl DiffBuilder {
-    fn copy(&mut self, base: usize, target: usize, len: usize) {
+    pub fn copy(&mut self, base: usize, target: usize, len: usize) {
+        let op = DiffOp {target_idx: target, base_idx: base, len };
         if let Some(prev) = self.ops.last_mut() {
             let prev_end = prev.target_idx + prev.len;
             let base_end = prev.base_idx + prev.len;
-            assert!(prev_end <= target, "{} <= {} prev {:?}", prev_end, target, prev);
+            assert!(prev_end <= target, "{} <= {} prev {:?}, op {:?}",
+                    prev_end, target, prev, op);
             if prev_end == target && base_end == base {
                 prev.len += len;
                 return;
@@ -786,7 +789,7 @@ impl DiffBuilder {
         self.ops.push(DiffOp { target_idx: target, base_idx: base, len: len })
     }
 
-    fn to_delta(self, base: &Rope, target: &Rope) -> RopeDelta {
+    pub fn to_delta(self, base: &Rope, target: &Rope) -> RopeDelta {
         let mut els = Vec::with_capacity(self.ops.len() * 2);
         let mut targ_pos = 0;
         for DiffOp { base_idx, target_idx, len } in self.ops {
@@ -804,6 +807,25 @@ impl DiffBuilder {
         }
 
         Delta { els, base_len: base.len() }
+    }
+
+    pub fn to_nondecreasing_delta(self, base: &Rope, target: &Rope) -> RopeDelta {
+        if self.ops.is_empty() { return self.to_delta(base, target); }
+
+        // indicies in self.ops
+        let mut used_regions = vec![0];
+        let mut prev_chain = vec![0; self.ops.len()];
+
+        for i in 1..self.ops.len() {
+            let DiffOp { target_idx, len, .. } = self.ops[*used_regions.last().unwrap()];
+            if target_idx < self.ops[0].target_idx {
+                prev_chain[i] = *used_regions.last().unwrap();
+                used_regions.push(i);
+            }
+
+        }
+
+        unimplemented!()
     }
 }
 

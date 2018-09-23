@@ -11,4 +11,5 @@ atty = "0.2"
 crossbeam = "0.4"
 suffix = "1"
 memchr = "2.0"
+statrs = "0.9"
 
