@@ -67,9 +67,9 @@ impl<T> Diff<RopeInfo> for T where T: MinimalDiff {
             return builder.to_delta(base, target);
         }
 
-        let base_iv = Interval::new_open_closed(diff_start, base.len() - diff_end);
+        let base_iv = Interval::new(diff_start, base.len() - diff_end);
         let base_d = base.subseq(base_iv);
-        let targ_iv = Interval::new_open_closed(diff_start, target.len() - diff_end);
+        let targ_iv = Interval::new(diff_start, target.len() - diff_end);
         let targ_d = target.subseq(targ_iv);
 
         T::compute_delta_body(&base_d, &targ_d, min_size, diff_start, &mut builder);
@@ -393,9 +393,9 @@ pub fn fast_expand_match(base: &Rope, target: &Rope, base_off: usize, targ_off: 
     let mut scanner = RopeScanner::new(base, target);
     debug_assert!(targ_off >= prev_match_targ_end, "{} >= {}", targ_off, prev_match_targ_end);
     let max_left = targ_off - prev_match_targ_end;
-    let start = scanner.find_ne_char_left(base_off, targ_off, max_left);
+    let start = scanner.find_ne_char_back(base_off, targ_off, max_left);
     debug_assert!(start <= max_left, "{} <= {}", start, max_left);
-    let end = scanner.find_ne_char_right(base_off, targ_off, None);
+    let end = scanner.find_ne_char(base_off, targ_off, None);
     (start.min(max_left), end)
 }
 
@@ -700,7 +700,7 @@ impl Diff<RopeInfo> for SuffixDiff {
 impl MinimalDiff for SuffixDiffOpt {
     fn compute_delta_body(base: &Rope, target: &Rope,
                           min_size: usize, offset: usize, builder: &mut DeltaOps) {
-        let suffix = SuffixTable::new(base.slice_to_string(..));
+        let suffix = SuffixTable::new(base.slice_to_cow(..));
         let mut cursor = Cursor::new(target, 0);
         let mut prev_cursor_pos;
 
@@ -744,7 +744,7 @@ impl DeltaOps {
         let els: Vec<DeltaElement<_>> = self.ops.into_iter().map(|op| match op {
             InterimOp::Copy(s, e) => DeltaElement::Copy(s, e),
             InterimOp::Insert(s, e) => {
-                let iv = Interval::new_closed_open(s, e);
+                let iv = Interval::new(s, e);
                 DeltaElement::Insert(target.subseq(iv))
             }
         }).collect();
@@ -794,7 +794,7 @@ impl DiffBuilder {
         let mut targ_pos = 0;
         for DiffOp { base_idx, target_idx, len } in self.ops {
             if target_idx > targ_pos {
-                let iv = Interval::new_closed_open(targ_pos, target_idx);
+                let iv = Interval::new(targ_pos, target_idx);
                 els.push(DeltaElement::Insert(target.subseq(iv)));
             }
             els.push(DeltaElement::Copy(base_idx, base_idx + len));
@@ -802,7 +802,7 @@ impl DiffBuilder {
         }
 
         if targ_pos < target.len() {
-            let iv = Interval::new_closed_open(targ_pos, target.len());
+            let iv = Interval::new(targ_pos, target.len());
             els.push(DeltaElement::Insert(target.subseq(iv)));
         }
 
@@ -1057,7 +1057,7 @@ Currently my sense of smell (and the pain of implementing Write) might be too mu
         let three = Rope::from("this is not my thistly test string");
         let mut cursor = Cursor::new(&three, 0);
         assert_eq!(SuffixDiff::match_for_cursor(&mut cursor, &suffix, 4), Some((0, 8)));
-        //let iv = Interval::new_open_closed(0, 8);
+        //let iv = Interval::new(0, 8);
         //els.push(DeltaElement::Insert(one.subseq(iv)));
     }
 

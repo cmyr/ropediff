@@ -44,7 +44,7 @@ impl<'a> fmt::Display for PrettyDelta<'a> {
             match *elem {
                 DeltaElement::Copy(beg, end) => {
                     color_idx = (color_idx + 1) % OTHER_COLORS.len();
-                    let s = self.base.slice_to_string(beg..end);
+                    let s = self.base.slice_to_cow(beg..end);
                     if atty::is(atty::Stream::Stdin) {
                         write!(f, "{}{}{}", OTHER_COLORS[color_idx], &s, END)?;
                     } else {
